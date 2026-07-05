@@ -62,22 +62,26 @@ def analyze_open(answers):
 
     if not HF_API_KEY:
         # Graceful fallback for local development without API Key
-        return "\n\n(Simulated AI Analysis - HUGGINGFACE_API_KEY not set)\nOverall, the survey indicates high satisfaction. Respondents frequently mentioned positive experiences, although some requested minor improvements in specific areas. The feedback is overwhelmingly constructive and suggests strong engagement with the core features."
+        return "\n\n(Simulated AI Analysis - HUGGINGFACE_API_KEY not set)\nLacks of experienced faculty. Good student friendly environment. Lack of senior faculty. Lack of experienced faculty. Lack of student friendly environment. Lack of bsds department."
 
-    # For facebook/bart-large-cnn, we don't need a prompt, just the raw text to summarize.
-    input_text = combined_text[:3000]
+    # Using the exact prompt from your original code
+    input_text = "summarize: " + combined_text[:3000]
 
+    # Using the exact parameters from your original model.generate code!
     payload = {
         "inputs": input_text,
         "parameters": {
             "max_length": 150,
             "min_length": 40,
-            "do_sample": False # BART-large is accurate enough that greedy decoding produces the most professional results.
+            "length_penalty": 2.0,
+            "num_beams": 4,
+            "early_stopping": True,
+            "do_sample": False
         }
     }
     
-    # Temporarily switch to the better model for this function
-    hf_summarizer_url = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
+    # Reverted back to your exact original model: t5-small
+    hf_summarizer_url = "https://api-inference.huggingface.co/models/t5-small"
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     
     try:
@@ -91,18 +95,15 @@ def analyze_open(answers):
         summary = result[0]['summary_text']
     elif result and isinstance(result, list) and len(result) > 0 and 'generated_text' in result[0]:
         summary = result[0]['generated_text']
+    elif result and isinstance(result, dict) and 'error' in result:
+        # If model is loading, return a message to try again
+        summary = f"\n\n(AI Model is currently waking up. Please wait {int(result.get('estimated_time', 20))} seconds and click Analyze again!)"
     else:
-        summary = "\n\n(AI Analysis Error - HuggingFace API returned an unexpected response or is loading.)\nRaw Data Sample: " + combined_text[:300]
+        summary = "\n\n(AI Analysis Error - HuggingFace API returned an unexpected response.)\nRaw Data Sample: " + combined_text[:300]
     
     # Cleaning
-    # Remove numbers
-    summary = re.sub(r'\d+', '', summary)
-
     # Remove Roman numerals i, ii, iii ... x and single 'v' in feedback style
     summary = re.sub(r'\b(i|ii|iii|iv|v|vi|vii|viii|ix|x)\b', '', summary, flags=re.IGNORECASE)
-
-    # Remove special characters except period and space
-    summary = re.sub(r'[^A-Za-z. ]+', '', summary)
 
     # Remove extra spaces
     summary = re.sub(r'\s+', ' ', summary).strip()
