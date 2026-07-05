@@ -64,23 +64,32 @@ def analyze_open(answers):
         # Graceful fallback for local development without API Key
         return "\n\n(Simulated AI Analysis - HUGGINGFACE_API_KEY not set)\nOverall, the survey indicates high satisfaction. Respondents frequently mentioned positive experiences, although some requested minor improvements in specific areas. The feedback is overwhelmingly constructive and suggests strong engagement with the core features."
 
-    input_text = "Write a clear professional summary in around one hundred fifty words without numbering or special symbols and avoid repetition: " + combined_text[:3000]
+    # For facebook/bart-large-cnn, we don't need a prompt, just the raw text to summarize.
+    input_text = combined_text[:3000]
 
     payload = {
         "inputs": input_text,
         "parameters": {
-            "max_length": 200,
-            "min_length": 50,
-            "do_sample": True,
-            "temperature": 0.8,
-            "top_p": 0.9,
-            "no_repeat_ngram_size": 3
+            "max_length": 150,
+            "min_length": 40,
+            "do_sample": False # BART-large is accurate enough that greedy decoding produces the most professional results.
         }
     }
     
-    result = query_huggingface(payload)
+    # Temporarily switch to the better model for this function
+    hf_summarizer_url = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
+    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     
-    if result and isinstance(result, list) and len(result) > 0 and 'generated_text' in result[0]:
+    try:
+        response = requests.post(hf_summarizer_url, headers=headers, json=payload, timeout=20)
+        result = response.json()
+    except Exception as e:
+        print(f"HF API Error: {e}")
+        result = None
+    
+    if result and isinstance(result, list) and len(result) > 0 and 'summary_text' in result[0]:
+        summary = result[0]['summary_text']
+    elif result and isinstance(result, list) and len(result) > 0 and 'generated_text' in result[0]:
         summary = result[0]['generated_text']
     else:
         summary = "\n\n(AI Analysis Error - HuggingFace API returned an unexpected response or is loading.)\nRaw Data Sample: " + combined_text[:300]
