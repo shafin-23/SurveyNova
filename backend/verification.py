@@ -1,15 +1,13 @@
 import os
-import smtplib
-from email.mime.text import MIMEText
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
 def send_email_otp(to_email, otp):
-    smtp_email = os.getenv("SMTP_EMAIL")
-    smtp_password = os.getenv("SMTP_PASSWORD")
+    resend_api_key = os.getenv("RESEND_API_KEY")
     
-    if not smtp_email or smtp_email == "your_gmail@gmail.com":
+    if not resend_api_key:
         print(f"[MOCK EMAIL] To: {to_email} | OTP: {otp}", flush=True)
         return True
 
@@ -26,16 +24,28 @@ def send_email_otp(to_email, otp):
           </body>
         </html>
         """
-        msg = MIMEText(html_content, 'html')
-        msg['Subject'] = 'SurveyNova - Verify your Email'
-        msg['From'] = smtp_email
-        msg['To'] = to_email
         
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=5)
-        server.login(smtp_email, smtp_password)
-        server.send_message(msg)
-        server.quit()
-        return True
+        headers = {
+            "Authorization": f"Bearer {resend_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "from": "SurveyNova <onboarding@resend.dev>",
+            "to": [to_email],
+            "subject": "SurveyNova - Verify your Email",
+            "html": html_content
+        }
+        
+        response = requests.post("https://api.resend.com/emails", headers=headers, json=data, timeout=10)
+        
+        if response.status_code in [200, 201]:
+            print(f"Successfully sent OTP to {to_email} via Resend", flush=True)
+            return True
+        else:
+            print(f"Failed to send email via Resend: {response.text}", flush=True)
+            return False
+            
     except Exception as e:
-        print(f"Failed to send email: {e}", flush=True)
+        print(f"Exception sending email via Resend: {e}", flush=True)
         return False
