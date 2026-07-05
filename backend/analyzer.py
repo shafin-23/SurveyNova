@@ -85,8 +85,11 @@ def analyze_open(answers):
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     
     try:
-        response = requests.post(hf_summarizer_url, headers=headers, json=payload, timeout=20)
+        response = requests.post(hf_summarizer_url, headers=headers, json=payload, timeout=60)
         result = response.json()
+    except requests.exceptions.Timeout:
+        print("HF API Error: Timeout")
+        result = {"error": "timeout", "estimated_time": 60}
     except Exception as e:
         print(f"HF API Error: {e}")
         result = None
@@ -97,7 +100,7 @@ def analyze_open(answers):
         summary = result[0]['generated_text']
     elif result and isinstance(result, dict) and 'error' in result:
         # If model is loading, return a message to try again
-        summary = f"\n\n(AI Model is currently waking up. Please wait {int(result.get('estimated_time', 20))} seconds and click Analyze again!)"
+        summary = f"\n\n(AI Model is currently waking up or taking too long. Please wait {int(result.get('estimated_time', 20))} seconds and click Analyze again!)"
     else:
         summary = "\n\n(AI Analysis Error - HuggingFace API returned an unexpected response.)\nRaw Data Sample: " + combined_text[:300]
     
