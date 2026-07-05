@@ -58,12 +58,25 @@ async def register_user():
         
     if existing_user:
         if not existing_user.get("isEmailVerified"):
-            # The user exists but hasn't verified their email. Resend a new OTP.
+            # The user exists but hasn't verified their email. Resend a new OTP and update their details.
             new_otp = str(random.randint(100000, 999999))
-            await db.users.update_one({"_id": existing_user["_id"]}, {"$set": {"emailOtp": new_otp}})
+            
+            # Hash the newly submitted password in case they changed it
+            hashed_password = get_password_hash(data.get("password"))
+            
+            await db.users.update_one(
+                {"_id": existing_user["_id"]}, 
+                {"$set": {
+                    "emailOtp": new_otp,
+                    "password": hashed_password,
+                    "firstName": data.get("firstName"),
+                    "lastName": data.get("lastName")
+                }}
+            )
+            
             send_email_otp(email, new_otp)
             return jsonify({
-                "message": "Account was unverified. A new OTP has been sent.",
+                "message": "Account was unverified. Details updated and a new OTP has been sent.",
                 "id": str(existing_user["_id"]),
                 "email": email
             }), 201
