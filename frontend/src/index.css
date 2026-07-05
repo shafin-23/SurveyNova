@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-effect {
+    @apply bg-white/70 backdrop-blur-md border-white/20;
+  }
+  .glass-dark {
+    @apply bg-gray-900/80 backdrop-blur-lg border-gray-700/50;
+  }
+  .premium-shadow {
+    box-shadow: 0 10px 40px -10px rgba(16, 185, 129, 0.15), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  }
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  .animate-pulse-slow {
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+/* Make inputs and buttons feel more premium by default */
+input, textarea {
+  @apply transition-all duration-300;
+}
+button {
+  @apply transition-all duration-300 active:scale-95;
+}
