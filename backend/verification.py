@@ -1,15 +1,14 @@
 import os
-import smtplib
-from email.mime.text import MIMEText
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
 def send_email_otp(to_email, otp):
-    smtp_email = os.getenv("SMTP_EMAIL")
-    smtp_password = os.getenv("SMTP_PASSWORD")
+    brevo_api_key = os.getenv("BREVO_API_KEY")
+    sender_email = os.getenv("SMTP_EMAIL")
     
-    if not smtp_email or smtp_email == "your_gmail@gmail.com":
+    if not brevo_api_key or not sender_email or sender_email == "your_gmail@gmail.com":
         print(f"[MOCK EMAIL] To: {to_email} | OTP: {otp}", flush=True)
         return True
 
@@ -27,17 +26,35 @@ def send_email_otp(to_email, otp):
         </html>
         """
         
-        msg = MIMEText(html_content, 'html')
-        msg['Subject'] = 'SurveyNova - Verify your Email'
-        msg['From'] = smtp_email
-        msg['To'] = to_email
+        headers = {
+            "api-key": brevo_api_key,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
         
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=10)
-        server.login(smtp_email, smtp_password)
-        server.send_message(msg)
-        server.quit()
-        return True
+        data = {
+            "sender": {
+                "name": "SurveyNova",
+                "email": sender_email
+            },
+            "to": [
+                {
+                    "email": to_email
+                }
+            ],
+            "subject": "SurveyNova - Verify your Email",
+            "htmlContent": html_content
+        }
+        
+        response = requests.post("https://api.brevo.com/v3/smtp/email", headers=headers, json=data, timeout=10)
+        
+        if response.status_code in [200, 201]:
+            print(f"Successfully sent OTP to {to_email} via Brevo", flush=True)
+            return True
+        else:
+            print(f"Failed to send email via Brevo: {response.text}", flush=True)
+            return False
             
     except Exception as e:
-        print(f"Exception sending email: {e}", flush=True)
+        print(f"Exception sending email via Brevo: {e}", flush=True)
         return False
