@@ -8,25 +8,27 @@ export default function Report() {
   const [loading, setLoading] = useState(true)
   const [surveyResults, setSurveyResults] = useState(null)
 
-  useEffect(() => {
-    const fetchReport = async () => {
-      try {
-        const token = localStorage.getItem('token')
-        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/surveys/${id}/report`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        if (res.ok) {
-          const data = await res.json()
-          setSurveyResults(data)
-        } else {
-          console.error("Failed to fetch report")
-        }
-      } catch (err) {
-        console.error("Error connecting to server")
-      } finally {
-        setLoading(false)
+  const fetchReport = async () => {
+    setLoading(true)
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/surveys/${id}/report`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setSurveyResults(data)
+      } else {
+        console.error("Failed to fetch report")
       }
+    } catch (err) {
+      console.error("Error connecting to server")
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchReport()
   }, [id])
 
@@ -106,6 +108,14 @@ export default function Report() {
             <p className="text-lg leading-relaxed relative z-10 text-indigo-50">
               {surveyResults.summary}
             </p>
+            {surveyResults.summary && surveyResults.summary.includes('waking up') && (
+              <button 
+                onClick={fetchReport}
+                className="mt-6 relative z-10 bg-white text-indigo-700 font-bold py-2 px-6 rounded-lg shadow hover:bg-indigo-50 transition-colors"
+              >
+                Analyze Again
+              </button>
+            )}
           </div>
 
           {/* Statistics Dashboard */}
