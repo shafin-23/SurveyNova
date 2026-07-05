@@ -64,24 +64,20 @@ def analyze_open(answers):
         # Graceful fallback for local development without API Key
         return "\n\n(Simulated AI Analysis - HUGGINGFACE_API_KEY not set)\nLacks of experienced faculty. Good student friendly environment. Lack of senior faculty. Lack of experienced faculty. Lack of student friendly environment. Lack of bsds department."
 
-    # Using the exact prompt from your original code
-    input_text = "summarize: " + combined_text[:3000]
+    # For bart-large-cnn, no prompt is needed, just the raw text
+    input_text = combined_text[:3000]
 
-    # Using the exact parameters from your original model.generate code!
     payload = {
         "inputs": input_text,
         "parameters": {
             "max_length": 150,
             "min_length": 40,
-            "length_penalty": 2.0,
-            "num_beams": 4,
-            "early_stopping": True,
             "do_sample": False
         }
     }
     
-    # Reverted back to your exact original model: t5-small
-    hf_summarizer_url = "https://api-inference.huggingface.co/models/t5-small"
+    # Upgraded to BART for fixing spelling and organizing the summary perfectly
+    hf_summarizer_url = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     
     try:
@@ -94,15 +90,23 @@ def analyze_open(answers):
         print(f"HF API Error: {e}")
         result = None
     
-    if result and isinstance(result, list) and len(result) > 0 and 'summary_text' in result[0]:
-        summary = result[0]['summary_text']
-    elif result and isinstance(result, list) and len(result) > 0 and 'generated_text' in result[0]:
-        summary = result[0]['generated_text']
+    if result and isinstance(result, list) and len(result) > 0:
+        # HuggingFace can return different keys depending on the model (summary_text, generated_text, translation_text)
+        first_dict = result[0]
+        if 'summary_text' in first_dict:
+            summary = first_dict['summary_text']
+        elif 'generated_text' in first_dict:
+            summary = first_dict['generated_text']
+        elif 'translation_text' in first_dict:
+            summary = first_dict['translation_text']
+        else:
+            # Fallback to whatever the first value is
+            summary = list(first_dict.values())[0]
     elif result and isinstance(result, dict) and 'error' in result:
         # If model is loading, return a message to try again
         summary = f"\n\n(AI Model is currently waking up or taking too long. Please wait {int(result.get('estimated_time', 20))} seconds and click Analyze again!)"
     else:
-        summary = "\n\n(AI Analysis Error - HuggingFace API returned an unexpected response.)\nRaw Data Sample: " + combined_text[:300]
+        summary = "\n\n(AI Analysis Error - HuggingFace API returned an unexpected response: " + str(result) + ")\nRaw Data Sample: " + combined_text[:300]
     
     # Cleaning
     # Remove Roman numerals i, ii, iii ... x and single 'v' in feedback style
