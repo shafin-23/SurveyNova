@@ -60,58 +60,65 @@ def analyze_likert(answers):
 def analyze_open(answers):
     combined_text = " ".join(answers)
 
-    try:
-        from transformers import AutoTokenizer
-        from optimum.onnxruntime import ORTModelForSeq2SeqLM
-    except ImportError:
-        return "\n\n(AI Analysis Error - Required libraries not installed. Please check build logs.)"
-        
-    model_dir = "t5_small_onnx_quantized"
-    
-    if not os.path.exists(model_dir):
-        return "\n\n(AI Analysis Error - ONNX model not found. The model must be generated during the build step.)"
+    if not HF_API_KEY:
+        # Graceful fallback for local development without API Key
+        return "\n\n(Simulated AI Analysis - HUGGINGFACE_API_KEY not set)\nLacks of experienced faculty. Good student friendly environment. Lack of senior faculty. Lack of experienced faculty. Lack of student friendly environment. Lack of bsds department."
 
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(model_dir)
-        model = ORTModelForSeq2SeqLM.from_pretrained(model_dir)
-    except Exception as e:
-        return f"\n\n(AI Analysis Error - Failed to load ONNX model: {str(e)})"
-        
-    input_text = (
-        "Write a clear professional summary in around one hundred fifty words "
-        "without numbering or special symbols and avoid repetition: "
-        + combined_text[:3000]
+    # Using an Instruction-tuned model so it writes in its own words
+    hf_summarizer_url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
+    
+    prompt = (
+        "<s>[INST] You are an expert data analyst. Read the following survey responses "
+        "and write a clear, professional summary in your own words. "
+        "Highlight the most common positive and negative feedback.\n\n"
+        f"Responses:\n{combined_text[:3000]}\n\n"
+        "Professional Summary: [/INST]"
     )
 
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 150,
+            "temperature": 0.5,
+            "return_full_text": False
+        }
+    }
+    
+    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    
     try:
-        inputs = tokenizer(
-            input_text,
-            return_tensors="pt",
-            max_length=512,
-            truncation=True
-        )
-        
-        outputs = model.generate(
-            input_ids=inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
-            max_length=200,
-            min_length=20,
-            num_beams=4,
-            length_penalty=2.0,
-            early_stopping=True
-        )
-
-        summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        response = requests.post(hf_summarizer_url, headers=headers, json=payload, timeout=60)
+        result = response.json()
+    except requests.exceptions.Timeout:
+        print("HF API Error: Timeout")
+        result = {"error": "timeout", "estimated_time": 60}
     except Exception as e:
-        return f"\n\n(AI Analysis Error - Failed to generate summary: {str(e)})"
+        print(f"HF API Error: {e}")
+        result = None
+    
+    if result and isinstance(result, list) and len(result) > 0:
+        first_dict = result[0]
+        if 'generated_text' in first_dict:
+            summary = first_dict['generated_text'].strip()
+        else:
+            summary = list(first_dict.values())[0]
+    elif result and isinstance(result, dict) and 'error' in result:
+        # If model is loading, return a message to try again
+        summary = f"\n\n(AI Model is currently waking up or taking too long. Please wait {int(result.get('estimated_time', 20))} seconds and click Analyze again!)"
+    else:
+        summary = "\n\n(AI Analysis Error - HuggingFace API returned an unexpected response: " + str(result) + ")\nRaw Data Sample: " + combined_text[:300]
     
     # Cleaning
-    summary = re.sub(r'\d+', '', summary)
+    # Remove Roman numerals i, ii, iii ... x and single 'v' in feedback style
     summary = re.sub(r'\b(i|ii|iii|iv|v|vi|vii|viii|ix|x)\b', '', summary, flags=re.IGNORECASE)
-    summary = re.sub(r'[^A-Za-z. ]+', '', summary)
+
+    # Remove extra spaces
     summary = re.sub(r'\s+', ' ', summary).strip()
+
+    # Remove duplicate consecutive words
     summary = re.sub(r'\b(\w+)( \1\b)+', r'\1', summary, flags=re.IGNORECASE)
 
+    # Split sentences
     sentences = re.split(r'\.+', summary)
     cleaned_sentences = []
     seen = set()
@@ -130,6 +137,7 @@ def analyze_open(answers):
     # Strict 20 words per line formatting
     words = final_summary.split()
     lines = []
+
     for i in range(0, len(words), 20):
         line = " ".join(words[i:i+20])
         lines.append(line)
