@@ -440,7 +440,7 @@ async def upload_survey_csv(current_user_id):
     import pandas as pd
     from analyzer import detect_question_type
     import uuid
-    from datetime import datetime, UTC
+    from datetime import datetime, timezone
     
     try:
         if filename.endswith('.csv'):
@@ -488,8 +488,8 @@ async def upload_survey_csv(current_user_id):
         "userId": current_user_id,
         "blocks": blocks,
         "theme": "default",
-        "createdAt": datetime.now(UTC),
-        "updatedAt": datetime.now(UTC)
+        "createdAt": datetime.now(timezone.utc),
+        "updatedAt": datetime.now(timezone.utc)
     }
     result = await db.surveys.insert_one(survey_doc)
     survey_id = str(result.inserted_id)
@@ -507,7 +507,7 @@ async def upload_survey_csv(current_user_id):
             responses.append({
                 "surveyId": survey_id,
                 "answers": answers_dict,
-                "submittedAt": datetime.now(UTC)
+                "submittedAt": datetime.now(timezone.utc)
             })
             
     if responses:
