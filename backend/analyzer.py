@@ -64,20 +64,26 @@ def analyze_open(answers):
         # Graceful fallback for local development without API Key
         return "\n\n(Simulated AI Analysis - HUGGINGFACE_API_KEY not set)\nLacks of experienced faculty. Good student friendly environment. Lack of senior faculty. Lack of experienced faculty. Lack of student friendly environment. Lack of bsds department."
 
-    # For bart-large-cnn, no prompt is needed, just the raw text
-    input_text = combined_text[:3000]
+    # Using an Instruction-tuned model so it writes in its own words
+    hf_summarizer_url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
+    
+    prompt = (
+        "<s>[INST] You are an expert data analyst. Read the following survey responses "
+        "and write a clear, professional summary in your own words. "
+        "Highlight the most common positive and negative feedback.\n\n"
+        f"Responses:\n{combined_text[:3000]}\n\n"
+        "Professional Summary: [/INST]"
+    )
 
     payload = {
-        "inputs": input_text,
+        "inputs": prompt,
         "parameters": {
-            "max_length": 150,
-            "min_length": 40,
-            "do_sample": False
+            "max_new_tokens": 150,
+            "temperature": 0.5,
+            "return_full_text": False
         }
     }
     
-    # Upgraded to BART for fixing spelling and organizing the summary perfectly
-    hf_summarizer_url = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
     headers = {"Authorization": f"Bearer {HF_API_KEY}"}
     
     try:
@@ -91,16 +97,10 @@ def analyze_open(answers):
         result = None
     
     if result and isinstance(result, list) and len(result) > 0:
-        # HuggingFace can return different keys depending on the model (summary_text, generated_text, translation_text)
         first_dict = result[0]
-        if 'summary_text' in first_dict:
-            summary = first_dict['summary_text']
-        elif 'generated_text' in first_dict:
-            summary = first_dict['generated_text']
-        elif 'translation_text' in first_dict:
-            summary = first_dict['translation_text']
+        if 'generated_text' in first_dict:
+            summary = first_dict['generated_text'].strip()
         else:
-            # Fallback to whatever the first value is
             summary = list(first_dict.values())[0]
     elif result and isinstance(result, dict) and 'error' in result:
         # If model is loading, return a message to try again
