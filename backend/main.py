@@ -567,7 +567,7 @@ async def generate_survey_report(current_user_id, survey_id):
                 "type": q_type,
                 "distribution": dist
             })
-        elif q_type in ["short_answer", "paragraph"]:
+        elif q_type in ["short_answer", "paragraph", "text"]:
             # Do not include the Timestamp column in the AI summary, otherwise it cuts off real feedback
             if q_text and q_text.lower().strip() != "timestamp":
                 all_open_answers.extend([str(a) for a in q_answers if a])
