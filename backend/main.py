@@ -424,6 +424,19 @@ async def submit_response(survey_id):
     }
     
     await db.responses.insert_one(response_doc)
+    
+    # Create a notification for the survey owner
+    if survey.get("userId"):
+        notification = {
+            "userId": survey["userId"],
+            "type": "new_response",
+            "message": f"Someone just responded to your survey: '{survey.get('title', 'Untitled')}'",
+            "surveyId": survey_id,
+            "read": False,
+            "createdAt": datetime.utcnow()
+        }
+        await db.notifications.insert_one(notification)
+        
     return jsonify({"message": "Response submitted successfully!"}), 201
 
 @app.route("/api/surveys/upload", methods=["POST"])
@@ -705,6 +718,39 @@ async def get_admin_dashboard(current_user_id):
         },
         "feedback": formatted_feedback
     }), 200
+
+@app.route("/api/notifications", methods=["GET"])
+@token_required
+async def get_notifications(current_user_id):
+    db = await get_db()
+    # Fetch last 50 notifications
+    cursor = db.notifications.find({"userId": current_user_id}).sort("createdAt", -1).limit(50)
+    notifications = await cursor.to_list(length=50)
+    
+    formatted = []
+    for n in notifications:
+        formatted.append({
+            "id": str(n["_id"]),
+            "type": n.get("type", "info"),
+            "message": n.get("message", ""),
+            "surveyId": n.get("surveyId"),
+            "read": n.get("read", False),
+            "createdAt": n.get("createdAt").isoformat() if n.get("createdAt") else None
+        })
+        
+    return jsonify(formatted), 200
+
+@app.route("/api/notifications/<notif_id>/read", methods=["PUT"])
+@token_required
+async def mark_notification_read(current_user_id, notif_id):
+    db = await get_db()
+    result = await db.notifications.update_one(
+        {"_id": ObjectId(notif_id), "userId": current_user_id},
+        {"$set": {"read": True}}
+    )
+    if result.modified_count == 0:
+        return jsonify({"message": "Notification not found or already read"}), 404
+    return jsonify({"message": "Marked as read"}), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

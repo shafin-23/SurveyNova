@@ -10,6 +10,7 @@ export default function Navbar({ isAuthenticated, userRole, userDetails, onLogou
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [notifications, setNotifications] = useState([])
   
   const notificationRef = useRef(null)
   const profileRef = useRef(null)
@@ -41,10 +42,49 @@ export default function Navbar({ isAuthenticated, userRole, userDetails, onLogou
     return `${userDetails.firstName[0]}${userDetails.lastName ? userDetails.lastName[0] : ''}`.toUpperCase()
   }
 
-  const dummyNotifications = [
-    { id: 1, text: "Welcome to SurveyNova Platform!", time: "2 hrs ago" },
-    { id: 2, text: "Your 'Customer Satisfaction' report is ready.", time: "1 day ago" }
-  ]
+  const fetchNotifications = async () => {
+    if (!isAuthenticated) return
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/notifications`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setNotifications(data)
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications", err)
+    }
+  }
+
+  useEffect(() => {
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [isAuthenticated])
+
+  const handleNotificationClick = async (notif) => {
+    if (notif.surveyId) {
+      navigate(`/report/${notif.surveyId}`)
+      setShowNotifications(false)
+    }
+    if (!notif.read) {
+      try {
+        const token = localStorage.getItem('token')
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/notifications/${notif.id}/read`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        fetchNotifications() // Refresh to clear the badge
+      } catch (err) {
+        console.error(err)
+      }
+    }
+  }
+
+  const unreadCount = notifications.filter(n => !n.read).length
+
 
   return (
     <nav className="glass-effect shadow-sm border-b sticky top-0 z-50 transition-all duration-300">
@@ -98,25 +138,49 @@ export default function Navbar({ isAuthenticated, userRole, userDetails, onLogou
                     className="text-gray-500 hover:text-indigo-600 p-2 rounded-full hover:bg-gray-50 transition-colors relative focus:outline-none"
                   >
                     <Bell className="w-5 h-5" />
-                    <span className="absolute top-1 right-1 flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                    </span>
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                      </span>
+                    )}
                   </button>
                   
                   {/* Notifications Dropdown */}
                   {showNotifications && (
-                    <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
-                      <div className="px-4 py-2 border-b border-gray-50 font-bold text-gray-900">Notifications</div>
-                      {dummyNotifications.map(notif => (
-                        <div key={notif.id} className="px-4 py-3 hover:bg-gray-50 border-b border-gray-50 cursor-pointer transition-colors">
-                          <p className="text-sm text-gray-800">{notif.text}</p>
-                          <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
-                        </div>
-                      ))}
-                      <div className="px-4 py-2 text-center text-sm text-indigo-600 font-medium cursor-pointer hover:text-indigo-800">
-                        View all
+                    <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50 max-h-96 overflow-y-auto">
+                      <div className="px-4 py-2 border-b border-gray-50 flex justify-between items-center">
+                        <span className="font-bold text-gray-900">Notifications</span>
+                        {unreadCount > 0 && <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">{unreadCount} new</span>}
                       </div>
+                      
+                      {notifications.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                          No notifications yet
+                        </div>
+                      ) : (
+                        notifications.map(notif => (
+                          <div 
+                            key={notif.id} 
+                            onClick={() => handleNotificationClick(notif)}
+                            className={`px-4 py-3 hover:bg-gray-50 border-b border-gray-50 cursor-pointer transition-colors ${!notif.read ? 'bg-indigo-50/30' : ''}`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <p className={`text-sm ${!notif.read ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>{notif.message}</p>
+                              {!notif.read && <span className="h-2 w-2 bg-indigo-500 rounded-full flex-shrink-0 mt-1.5 ml-2"></span>}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {notif.createdAt ? new Date(notif.createdAt).toLocaleDateString() : 'Just now'}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                      
+                      {notifications.length > 0 && (
+                        <div className="px-4 py-2 text-center text-sm text-indigo-600 font-medium cursor-pointer hover:text-indigo-800">
+                          Mark all as read
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
