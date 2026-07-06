@@ -751,6 +751,41 @@ async def mark_notification_read(current_user_id, notif_id):
     if result.modified_count == 0:
         return jsonify({"message": "Notification not found or already read"}), 404
     return jsonify({"message": "Marked as read"}), 200
+@app.route("/api/surveys", methods=["DELETE"])
+@token_required
+async def delete_surveys(current_user_id):
+    data = request.json
+    survey_ids = data.get("surveyIds", [])
+    if not survey_ids:
+        return jsonify({"message": "No survey IDs provided"}), 400
+        
+    db = await get_db()
+    
+    # Convert string IDs to ObjectIds
+    object_ids = []
+    for s_id in survey_ids:
+        try:
+            object_ids.append(ObjectId(s_id))
+        except:
+            continue
+            
+    if not object_ids:
+        return jsonify({"message": "Invalid survey IDs"}), 400
+
+    # Ensure the user actually owns these surveys before deleting
+    result = await db.surveys.delete_many({
+        "_id": {"$in": object_ids},
+        "userId": current_user_id
+    })
+    
+    # Delete associated responses
+    if result.deleted_count > 0:
+        # We delete responses by the string representation of the surveyId as stored
+        str_ids = [str(oid) for oid in object_ids]
+        await db.responses.delete_many({"surveyId": {"$in": str_ids}})
+        await db.notifications.delete_many({"surveyId": {"$in": str_ids}})
+        
+    return jsonify({"message": f"Deleted {result.deleted_count} survey(s)"}), 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

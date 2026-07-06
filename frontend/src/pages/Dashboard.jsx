@@ -55,10 +55,29 @@ export default function Dashboard() {
     )
   }
 
-  const handleDeleteSelected = () => {
-    if(window.confirm(`Are you sure you want to delete ${selectedSurveys.length} survey(s)?`)) {
-      setSurveys(surveys.filter(s => !selectedSurveys.includes(s.id)))
-      setSelectedSurveys([])
+  const handleDeleteSelected = async () => {
+    if(window.confirm(`Are you sure you want to delete ${selectedSurveys.length} survey(s)? This action cannot be undone.`)) {
+      try {
+        const token = localStorage.getItem('token')
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/surveys`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ surveyIds: selectedSurveys })
+        })
+        
+        if (res.ok) {
+          setSurveys(surveys.filter(s => !selectedSurveys.includes(s.id)))
+          setSelectedSurveys([])
+        } else {
+          alert("Failed to delete surveys. Please try again.")
+        }
+      } catch (err) {
+        console.error("Error deleting surveys:", err)
+        alert("An error occurred while deleting.")
+      }
     }
   }
 
